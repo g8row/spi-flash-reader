@@ -12,28 +12,10 @@ static void pabort(const char *s)
 		perror(s);
 		abort();
 }
-static void transfer(int fd, u_int8_t* tx,u_int8_t* rx, int len)
-{
-        int ret;
-        struct spi_ioc_transfer tr = {
-                .tx_buf = (unsigned long)tx,
-                .rx_buf = (unsigned long)rx,
-                .len = len,
-                .delay_usecs = 0,
-                .speed_hz = 410000,
-                .bits_per_word = 8,
-        };
-
-        ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
-        if (ret < 1)
-                pabort("can't send spi message");
-
-        //puts("");
-}
 int main()
 {
 	int dev = open("/dev/spidev0.0", O_RDWR);
-	int file = open("spictest.bin", O_RDWR | O_APPEND | O_CREAT , S_IRWXU); // | S_IRWXG | S_IRWXO);
+	int file = open("spictest.bin", O_RDWR| O_TRUNC | O_CREAT , S_IRWXU);
 	
 	if (dev < 0)
 		pabort("can't open device");
@@ -52,31 +34,45 @@ int main()
 	ret = ioctl(dev, SPI_IOC_RD_BITS_PER_WORD, &bits);
 	if (ret == -1)
 		pabort("can't get bits per word");
-	int speed = 410000;
+	int speed = 80000000;
 	ret = ioctl(dev, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
 	if(ret == -1)
 		pabort("can't set max speed");
 	ret = ioctl(dev, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
 	if(ret == -1)
 		pabort("can't get max speed");
-	int sector = 256;	
-	u_int8_t tx[4+256];
-        u_int8_t rx[4+256] = {0, };
+
+	int sector = 1024;	
+	u_int8_t tx[4+1024];
+        u_int8_t rx[4+1024] = {0, };
 	
-	for(int i=0;i<1024*16;i++){
-		u_int8_t cmd = 0x03;
-		int address = i*sector;	
+	u_int8_t cmd = 0x03;
+	int address;	
+	
+        struct spi_ioc_transfer tr = {
+               	.tx_buf = (unsigned long)tx,
+               	.rx_buf = (unsigned long)rx,
+               	.len = 4+sector,
+               	.delay_usecs = 0,
+               	.speed_hz = speed,
+               	.bits_per_word = bits,
+       	};
+
+	int writes=1024*(4096/sector);
+	
+	for(int i=0;i<writes;i++){
+		address = i*sector;	
 		tx[0] = cmd;
 		tx[1] = (address >> 16) & 0b11111111;
 		tx[2] = (address >> 8) & 0b11111111;
 		tx[3] = address & 0b11111111;
-		printf("read half-sector %d\n",i);
-		transfer(dev,tx,rx,4+sector);
-		/*for(int j=0;j<8;j++){
-			printf("in rx[%d] %x\n",j+4,rx[j+4]);
-		}*/
-		//lseek(file,0,SEEK_END);
-		printf("%d\n",write(file,&(rx[4]),sector));
+		
+        	ret = ioctl(dev, SPI_IOC_MESSAGE(1), &tr);
+        	if (ret < 1)
+                	pabort("can't send spi message");
+
+		lseek(file,0,SEEK_END);
+		write(file,&(rx[4]),sector);
 	}
 	close(dev);
 	close(file);
