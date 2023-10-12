@@ -32,8 +32,9 @@ static void transfer(int fd, u_int8_t* tx,u_int8_t* rx, int len)
 }
 int main()
 {
-	int dev = open("/dev/spidev0.0",O_RDWR);
-	int file = open("spictest2.bin",O_RDWR | O_APPEND | O_CREAT | S_IRWXU); // | S_IRWXG | S_IRWXO);
+	int dev = open("/dev/spidev0.0", O_RDWR);
+	int file = open("spictest.bin", O_RDWR | O_APPEND | O_CREAT , S_IRWXU); // | S_IRWXG | S_IRWXO);
+	
 	if (dev < 0)
 		pabort("can't open device");
 	int ret;
